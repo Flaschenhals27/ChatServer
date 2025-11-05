@@ -11,12 +11,12 @@ In case you forgot how to get a local copy of the repository from the server to 
 a little reminder:
 
 1. Log in to the [Gitlab Server](https://gitlab.rwu.de).
-2. Navigate to your chat server project, e.g. `stud-syspr/2024-ss/g01/chat`.
+2. Navigate to your chat server project, e.g. `stud-syspr/2025-ws/g01/chat`.
 3. In the menu below the project description, choose whether you want to use HTTPS or SSH.
 4. Copy the repository address to the clipboard using the corresponding button.
 5. Open a terminal and change to the directory where you want your local repository to be stored.
    Remember that git will create a subdirectory with the name of the project.
-6. Use `git clone`, e.g.: `git clone git@gitlab.rwu.de:stud-syspr/2024-ss/g01/chat.git`
+6. Use `git clone`, e.g.: `git clone git@gitlab.rwu.de:stud-syspr/2025-ws/g01/chat.git`
 
 Using CMake to build the project
 ================================
