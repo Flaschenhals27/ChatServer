@@ -4,5 +4,11 @@
 
 void *clientthread(void *arg);
 void sendMessage(User *target, void *msg);
+void sendChatMessage(User *target, void *arg);
+
+typedef struct {
+    User *sender;
+    char *text;
+} ChatContext;
 
 #endif

@@ -40,30 +40,20 @@ int networkReceive(int fd, Message *buffer)
 
 int networkSend(int fd, const Message *buffer)
 {
-	uint8_t optcode;
-	int sent;
-	size_t text_len = strlen(buffer->text);
+	uint16_t payload_len = buffer->len;
 
-	if (text_len > MSG_MAX) { //Nachricht zu lang?
+	if (payload_len > MSG_MAX) {
 		errno = EMSGSIZE;
 		return -1;
 	}
 
-	uint16_t net_len = htons((uint16_t)text_len);
+	if (send(fd, &buffer->optcode, sizeof(uint8_t), 0) != 1) return -1;
 
-	optcode = 1; //Vorübergehend
+	uint16_t net_len = htons(payload_len);
+	if (send(fd, &net_len, sizeof(uint16_t), 0) != sizeof(uint16_t)) return -1;
 
-	if (send(fd, &optcode, sizeof(uint8_t), 0) != 1) {
-		return -1;
-	}
-
-	if (send(fd, &net_len, sizeof(uint16_t), 0) != sizeof(uint16_t)) {
-		return -1;
-	}
-
-	if (text_len > 0) {
-		sent = send(fd, buffer->text, text_len, 0);
-		if (sent != text_len) return -1;
+	if (payload_len > 0) {
+		if (send(fd, buffer->text, payload_len, 0) != payload_len) return -1;
 	}
 
 	return 0;
