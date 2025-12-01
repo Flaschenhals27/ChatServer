@@ -70,50 +70,18 @@ User *removeUser(User *user) {
     return user;
 }
 
-/*void iterateUser(User *ignoreUser, void (*function)(User *user, void *arg), void *arg) {
+void iterateUser(User *ignoreUser, void (*function)(User *u, void *arg), void *arg) {
     pthread_mutex_lock(&userLock);
     User *temp = userFront;
+
     while (temp != NULL) {
         User *nextBackup = temp->next;
-        if (temp != ignoreUser) {
-            function(temp, arg); //nur funktionen die nicht locken!
-        }
-        temp = nextBackup;
-    }
-    pthread_mutex_unlock(&userLock);
-}*/
-
-// In user.c
-
-void iterateUser(User *ignoreUser, void (*function)(User *user, void *arg), void *arg) {
-    pthread_mutex_lock(&userLock);
-
-    User *temp = userFront;
-
-    // DEBUG 1: Wo startet die Liste?
-    if (temp == NULL) {
-        printf("DEBUG: FEHLER! Die Liste ist komplett leer (userFront ist NULL)!\n");
-    } else {
-        printf("DEBUG: Starte Iteration. Ich bin User Socket %d.\n", ignoreUser->sock);
-    }
-
-    int count = 0;
-    while (temp != NULL) {
-        User *nextBackup = temp->next;
-        count++;
-
-        printf("DEBUG: Prüfe Listen-Eintrag %d (Socket %d)... ", count, temp->sock);
 
         if (temp != ignoreUser) {
-            printf("Treffer! Rufe sendMessage auf.\n");
             function(temp, arg);
-        } else {
-            printf("Das bin ich selbst (überspringen).\n");
         }
 
         temp = nextBackup;
     }
-
-    printf("DEBUG: Iteration fertig. %d User gefunden.\n", count);
     pthread_mutex_unlock(&userLock);
 }

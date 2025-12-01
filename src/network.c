@@ -14,6 +14,7 @@ int networkReceive(int fd, Message *buffer)
 
 	bytes = recv(fd, &optcode, sizeof(uint8_t), MSG_WAITALL);
 	if (bytes <= 0) return -1;
+	buffer->optcode = optcode;
 
 	bytes = recv(fd, &net_len, sizeof(uint16_t), MSG_WAITALL);
 	if (bytes <= 0) return -1;

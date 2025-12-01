@@ -1,5 +1,8 @@
 #ifndef CLIENTTHREAD_H
 #define CLIENTTHREAD_H
+#define CONNECTION_CLOSED_BY_CLIENT 0
+#define CONNECTION_CLOSED_BY_SERVER 1
+#define CONNECTION_ERROR 2
 #include "user.h"
 
 void *clientthread(void *arg);

@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <endian.h>
+#include <stdlib.h>
 
 #include "network.h"
 #include "user.h"
@@ -187,3 +188,45 @@ void sendChatMessage(User *target, void *arg) {
 	msg.len = offset + strlen(msg.text+offset);
 	networkSend(target->sock, &msg);
 }
+
+void sendUserAdded(int target_sock, char *username, uint64_t timestamp) {
+	Message msg;
+	msg.optcode = MSG_USER_ADDED;
+
+	uint64_t ts = htobe64(timestamp);
+	memcpy(msg.text, &ts, 8);
+
+	strncpy(msg.text+8, username, MSG_MAX-9); //9 da für eigenes \0
+	msg.text[MSG_MAX-1] = '\0';
+	msg.len = 8+strlen(msg.text+8);
+
+	networkSend(target_sock, &msg);
+}
+
+void sendUserRemoved(int target_sock, char *username, uint64_t timestamp) {
+	Message msg;
+	msg.optcode = MSG_USER_REMOVED;
+
+	uint64_t ts = htobe64(timestamp); //Host To Big Endian 64Bit
+	memcpy(msg.text, &ts, 8);
+
+	msg.text[8] = CONNECTION_CLOSED_BY_CLIENT;
+
+	strncpy(msg.text+9, username, MSG_MAX-10); //10 da für eigenes \0
+	msg.text[MSG_MAX-1] = '\0';
+
+	msg.len = 9 + strlen(msg.text+9);
+
+	networkSend(target_sock, &msg);
+} //Müssen mit broadcastagent umgesetzt werden !!!
+
+
+
+
+
+
+
+
+
+
+
