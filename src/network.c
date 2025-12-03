@@ -1,6 +1,7 @@
 #include <errno.h>
 #include "network.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -43,6 +44,28 @@ int networkSend(int fd, const Message *buffer)
 {
 	uint16_t payload_len = buffer->len;
 
+	//-----------------------
+	// In networkSend (network.c)
+
+	// ... (payload_len Berechnung) ...
+
+	// --- DEBUG START ---
+	printf("[DEBUG SEND] Payload-Length: %d\n", payload_len);
+	printf("[DEBUG SEND] Type: %02x\n", buffer->optcode); // oder buffer->type
+
+	uint16_t debug_net_len = htons(payload_len);
+	unsigned char *len_ptr = (unsigned char*)&debug_net_len;
+	printf("[DEBUG SEND] Length (BigEndian): %02x %02x\n", len_ptr[0], len_ptr[1]);
+
+	// Wir schauen uns die ersten 16 Bytes vom Inhalt an (Timestamp + Name Start)
+	unsigned char *p = (unsigned char*)buffer->text;
+	printf("[DEBUG SEND] First 16 Bytes of Body: ");
+	for(int i=0; i<16; i++) printf("%02x ", p[i]);
+	printf("\n");
+	// --- DEBUG END ---
+
+	// ... (ab hier deine send Befehle) ...
+	//-----------------------
 	if (payload_len > MSG_MAX) {
 		errno = EMSGSIZE;
 		return -1;

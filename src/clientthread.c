@@ -152,6 +152,22 @@ void *clientthread(void *arg) {
 	char joinMsg[MSG_MAX];
 	snprintf(joinMsg, sizeof(joinMsg), ">>> %s ist beigetreten.", self->name);
 
+	//Teil für die Liste des GUI-Clients
+	Message welcomeMsg;
+	buildUserAddedMsg(&welcomeMsg, self->name, (uint64_t)time(NULL));
+	broadcastQueueSend(&welcomeMsg);
+
+	void sendListEntryToMe(User *existingUser, void *arg) {
+		User *self = (User *)arg;
+
+		if (existingUser != self) {
+			Message listMsg;
+			buildUserAddedMsg(&listMsg, existingUser->name, 0);
+			networkSend(self->sock, &listMsg);
+		}
+	}
+	iterateUser(NULL, sendListEntryToMe, self);
+
 	while (1) {
 		if (networkReceive(self->sock, &msg) == -1) break;
 
@@ -219,6 +235,25 @@ void sendUserRemoved(int target_sock, char *username, uint64_t timestamp) {
 
 	networkSend(target_sock, &msg);
 } //Müssen mit broadcastagent umgesetzt werden !!!
+
+void buildUserAddedMsg(Message *msg, char *username, uint64_t timestamp) {
+	msg->optcode = MSG_USER_ADDED;
+	uint64_t ts = htobe64(timestamp);
+	memcpy(msg->text, &ts, 8);
+	strncpy(msg->text+8, username, MSG_MAX-9);
+	msg->text[MSG_MAX-1] = '\0';
+	msg->len = 8+strlen(msg->text+8);
+}
+
+void buildUserRemovedMsg(Message *msg, char *username) {
+	msg->optcode = MSG_USER_REMOVED;
+	uint64_t ts = htobe64((uint64_t)time(NULL)); //Time könnte auch in andere Variable geschrieben werden, deswegen hier NULL
+	memcpy(msg->text, &ts, 8);
+	msg->text[8] = CONNECTION_CLOSED_BY_CLIENT;
+	strncpy(msg->text+9, username, MSG_MAX-10);
+	msg->text[MSG_MAX-1] = '\0';
+	msg->len = 9 + strlen(msg->text+9);
+}
 
 
 
