@@ -12,56 +12,15 @@
 #include "network.h"
 #include "user.h"
 #include "util.h"
+#include "broadcastagent.h"
 
-/*void *clientthread(void *arg)
-{
+void sendListEntryToMe(User *existingUser, void *arg) {
 	User *self = (User *)arg;
-	Message msg;
-	int bytes_read;
 
-	debugPrint("Client thread started.");
-
-	//Erste Nachricht ist der Name
-	if (networkReceive(self->sock, &msg) == -1) { //Wenn kein Name genannt, Verbindung schließen
-		close(self->sock);
-		removeUser(self);
-		return NULL;
-	}
-
-	strncpy(self->name, msg.text, MAX_NAME_LENGTH-1);
-	self->name[MAX_NAME_LENGTH-1] = '\0';
-	self->name[strcspn(self->name, "\n")] = '\0'; //Suche das Enter, beende da den Namen
-
-	char joinMessage[MAX_NAME_LENGTH];
-	snprintf(joinMessage, MAX_NAME_LENGTH-1, "%s ist dem Chat beigetreten.", self->name);
-	iterateUser(self, sendMessage, joinMessage);
-
-	while (1) {
-		if (networkReceive(self->sock, &msg) == -1) {
-			break;
-		}
-		printf("Empfangen von %d: %s\n", self->sock, msg.text);
-		iterateUser(self, sendMessage, msg.text);
-	}
-
-	close(self->sock);
-	removeUser(self);
-	debugPrint("Client thread stopping.");
-	return NULL;
-}*/
-
-void sendMessage(User *target, void *arg) {
-	char *text = (char *)arg;
-	printf("Sende an User %d: %s\n", target->sock, text);
-	Message msg;
-
-	msg.optcode = MSG_SERVER_TO_CLIENT;
-
-	strncpy(msg.text, text, MSG_MAX-1);
-	msg.text[MSG_MAX-1] = '\0';
-	msg.len = strlen(msg.text);
-	if (networkSend(target->sock, &msg) == -1) {
-		printf("Fehler beim Senden an %d\n", target->sock);
+	if (existingUser != self) {
+		Message listMsg;
+		buildUserAddedMsg(&listMsg, existingUser->name, 0);
+		networkSend(self->sock, &listMsg);
 	}
 }
 
@@ -157,15 +116,6 @@ void *clientthread(void *arg) {
 	buildUserAddedMsg(&welcomeMsg, self->name, (uint64_t)time(NULL));
 	broadcastQueueSend(&welcomeMsg);
 
-	void sendListEntryToMe(User *existingUser, void *arg) {
-		User *self = (User *)arg;
-
-		if (existingUser != self) {
-			Message listMsg;
-			buildUserAddedMsg(&listMsg, existingUser->name, 0);
-			networkSend(self->sock, &listMsg);
-		}
-	}
 	iterateUser(NULL, sendListEntryToMe, self);
 
 	while (1) {
@@ -173,68 +123,33 @@ void *clientthread(void *arg) {
 
 		if (msg.optcode == MSG_CLIENT_TO_SERVER) {
 			printf("%s: %s\n", self->name, msg.text);
+			//Paket bauen
+			Message chatMsg;
+			chatMsg.optcode = MSG_SERVER_TO_CLIENT;
 
-			ChatContext ctx;
-			ctx.sender = self;
-			ctx.text = msg.text;
-			iterateUser(NULL, sendChatMessage, &ctx);
+			uint64_t timestamp = htobe64((uint64_t)time(NULL));
+			memcpy(chatMsg.text, &timestamp, 8);
+
+			memset(chatMsg.text+8, 0, 32); //Füllt den Speicherbereich mit 0 auf (Sicherheit)
+			strncpy(chatMsg.text+8, self->name, 31);
+
+			int offset = 40;
+			strncpy(chatMsg.text+offset, msg.text, MSG_MAX-offset-1);
+			chatMsg.text[MSG_MAX-1] = '\0';
+			chatMsg.len = offset+strlen(chatMsg.text+offset);
+
+			broadcastQueueSend(&chatMsg);
 		}
 	}
+
+	Message byeMsg;
+	buildUserRemovedMsg(&byeMsg, self->name);
+	broadcastQueueSend(&byeMsg);
+
 	close(self->sock);
 	removeUser(self);
 	return NULL;
 }
-
-void sendChatMessage(User *target, void *arg) {
-	ChatContext * ctx = (ChatContext *)arg;
-
-	Message msg;
-	msg.optcode = MSG_SERVER_TO_CLIENT;
-
-	uint64_t timestamp = htobe64((uint64_t)time(NULL));
-	memcpy(msg.text, &timestamp, 8);
-
-	memset(msg.text+8, 0, 32);
-	strncpy(msg.text+8, ctx->sender->name, 31);
-
-	int offset = 40; //8Byte Zeit+32 Name
-	strncpy(msg.text + offset, ctx->text, MSG_MAX-offset-1);
-	msg.text[MSG_MAX-1] = '\0';
-
-	msg.len = offset + strlen(msg.text+offset);
-	networkSend(target->sock, &msg);
-}
-
-void sendUserAdded(int target_sock, char *username, uint64_t timestamp) {
-	Message msg;
-	msg.optcode = MSG_USER_ADDED;
-
-	uint64_t ts = htobe64(timestamp);
-	memcpy(msg.text, &ts, 8);
-
-	strncpy(msg.text+8, username, MSG_MAX-9); //9 da für eigenes \0
-	msg.text[MSG_MAX-1] = '\0';
-	msg.len = 8+strlen(msg.text+8);
-
-	networkSend(target_sock, &msg);
-}
-
-void sendUserRemoved(int target_sock, char *username, uint64_t timestamp) {
-	Message msg;
-	msg.optcode = MSG_USER_REMOVED;
-
-	uint64_t ts = htobe64(timestamp); //Host To Big Endian 64Bit
-	memcpy(msg.text, &ts, 8);
-
-	msg.text[8] = CONNECTION_CLOSED_BY_CLIENT;
-
-	strncpy(msg.text+9, username, MSG_MAX-10); //10 da für eigenes \0
-	msg.text[MSG_MAX-1] = '\0';
-
-	msg.len = 9 + strlen(msg.text+9);
-
-	networkSend(target_sock, &msg);
-} //Müssen mit broadcastagent umgesetzt werden !!!
 
 void buildUserAddedMsg(Message *msg, char *username, uint64_t timestamp) {
 	msg->optcode = MSG_USER_ADDED;

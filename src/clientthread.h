@@ -15,9 +15,4 @@ void sendListEntryToMe(User *existingUser, void *arg);
 void buildUserAddedMsg(Message *msg, char *username, uint64_t timestamp);
 void buildUserRemovedMsg(Message *msg, char *username);
 
-typedef struct {
-    User *sender;
-    char *text;
-} ChatContext;
-
 #endif

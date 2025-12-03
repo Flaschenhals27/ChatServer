@@ -42,43 +42,38 @@ int networkReceive(int fd, Message *buffer)
 
 int networkSend(int fd, const Message *buffer)
 {
+	// 1. Wir nehmen die Länge, die im Struct steht.
+	// (Wichtig für Pakete mit Nullen drin, wie Timestamp)
 	uint16_t payload_len = buffer->len;
 
-	//-----------------------
-	// In networkSend (network.c)
-
-	// ... (payload_len Berechnung) ...
-
-	// --- DEBUG START ---
-	printf("[DEBUG SEND] Payload-Length: %d\n", payload_len);
-	printf("[DEBUG SEND] Type: %02x\n", buffer->optcode); // oder buffer->type
-
-	uint16_t debug_net_len = htons(payload_len);
-	unsigned char *len_ptr = (unsigned char*)&debug_net_len;
-	printf("[DEBUG SEND] Length (BigEndian): %02x %02x\n", len_ptr[0], len_ptr[1]);
-
-	// Wir schauen uns die ersten 16 Bytes vom Inhalt an (Timestamp + Name Start)
-	unsigned char *p = (unsigned char*)buffer->text;
-	printf("[DEBUG SEND] First 16 Bytes of Body: ");
-	for(int i=0; i<16; i++) printf("%02x ", p[i]);
-	printf("\n");
-	// --- DEBUG END ---
-
-	// ... (ab hier deine send Befehle) ...
-	//-----------------------
+	// 2. Sicherheitscheck: Passt das überhaupt in den Puffer?
 	if (payload_len > MSG_MAX) {
 		errno = EMSGSIZE;
 		return -1;
 	}
 
-	if (send(fd, &buffer->optcode, sizeof(uint8_t), 0) != 1) return -1;
-
-	uint16_t net_len = htons(payload_len);
-	if (send(fd, &net_len, sizeof(uint16_t), 0) != sizeof(uint16_t)) return -1;
-
-	if (payload_len > 0) {
-		if (send(fd, buffer->text, payload_len, 0) != payload_len) return -1;
+	// 3. Optcode senden (1 Byte)
+	// Wir senden exakt 1 Byte.
+	if (send(fd, &buffer->optcode, 1, 0) != 1) {
+		return -1;
 	}
 
-	return 0;
+	// 4. Länge senden (2 Bytes)
+	// Erst umwandeln in Network Byte Order (Big Endian)
+	uint16_t net_len = htons(payload_len);
+
+	if (send(fd, &net_len, sizeof(uint16_t), 0) != sizeof(uint16_t)) {
+		return -1;
+	}
+
+	// 5. Inhalt senden (Payload)
+	// Nur senden, wenn die Länge > 0 ist.
+	if (payload_len > 0) {
+		// Hier wird der Speicherbereich blind kopiert (auch Nullen!)
+		if (send(fd, buffer->text, payload_len, 0) != payload_len) {
+			return -1;
+		}
+	}
+
+	return 0; // Alles gut gegangen
 }
