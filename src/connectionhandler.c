@@ -21,7 +21,7 @@ static int createPassiveSocket(in_port_t port)
 	//Einstellung für den Socket
 	const int on = 1; //1=an 0=aus
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0) {
-		perror("setsockopt");
+		errnoPrint("setsockopt");
 		close(fd);
 		return -1;
 	}

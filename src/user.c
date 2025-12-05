@@ -1,10 +1,8 @@
 #include <pthread.h>
-#include "user.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "clientthread.h"
+#include "user.h"
 
 static pthread_mutex_t userLock = PTHREAD_MUTEX_INITIALIZER;
 static User *userFront = NULL;

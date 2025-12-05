@@ -1,11 +1,9 @@
 #include <errno.h>
-#include "network.h"
-
 #include <stdio.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include "network.h"
 
 int networkReceive(int fd, Message *buffer)
 {

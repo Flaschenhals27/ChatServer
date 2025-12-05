@@ -1,14 +1,14 @@
 #include <pthread.h>
 #include <mqueue.h>
-#include "broadcastagent.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "broadcastagent.h"
 #include "network.h"
 #include "user.h"
 #include "util.h"
-#define QUEUE_NAME "/chat_server_broadcast2342"
+
+#define QUEUE_NAME "/chat_server_broadcast"
 #define QUEUE_MAX_MSGS 10
 
 static mqd_t messageQueue;
@@ -19,14 +19,14 @@ static void *broadcastAgent(void *arg)
 	//Wie groß ist die Queue wirklich? ->Attribute holen
 	struct mq_attr attr;
 	if (mq_getattr(messageQueue, &attr) < 0) {
-		perror("Broadcast Agent: Konnte Queue-Attribute nicht lesen");
+		errnoPrint("Broadcast Agent: Konnte Queue-Attribute nicht lesen");
 		return NULL;
 	}
 
 	//Dynamischen Puffer erstellen
 	char *buffer = malloc(attr.mq_msgsize);
 	if (buffer == NULL) {
-		perror("Broadcast Agent: Speicherreservirung für Queue fehlgeschlagen");
+		errnoPrint("Broadcast Agent: Speicherreservirung für Queue fehlgeschlagen");
 		return NULL;
 	}
 
@@ -61,12 +61,12 @@ int broadcastAgentInit(void)
 	messageQueue = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0644, NULL);
 
 	if (messageQueue == (mqd_t)-1) {
-		perror("Broadcast Agent: mq_open failed");
+		errnoPrint("Broadcast Agent: mq_open failed");
 		return -1;
 	}
 
 	if (pthread_create(&threadId, NULL, broadcastAgent, NULL) != 0) {
-		perror("Broadcast Agent: pthread_create failed");
+		errnoPrint("Broadcast Agent: pthread_create failed");
 		mq_close(messageQueue);
 		mq_unlink(QUEUE_NAME);
 		return -1;
@@ -84,7 +84,7 @@ void broadcastAgentCleanup(void)
 
 int broadcastQueueSend(const Message *msg) {
 	if (mq_send(messageQueue, (const char *)msg, sizeof(Message), 0) == -1) {
-		perror("Broadcast Agent: mq_send failed");
+		errnoPrint("Broadcast Agent: mq_send failed");
 		return -1;
 	}
 	return 0;

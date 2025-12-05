@@ -1,5 +1,3 @@
-#include "clientthread.h"
-
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -7,8 +5,8 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <endian.h>
-#include <stdlib.h>
 
+#include "clientthread.h"
 #include "network.h"
 #include "user.h"
 #include "util.h"
@@ -41,7 +39,7 @@ void *clientthread(void *arg) {
 	//1.1 Prüfen ob Login Request
 
 	if (msg.optcode != MSG_LOGIN_REQ) {
-		printf("Client hat keine Login Anfrage gesendet.\nTrenne Verbindung...");
+		infoPrint("Client hat keine Login Anfrage gesendet.\nTrenne Verbindung...");
 		close(self->sock);
 		removeUser(self);
 		return NULL;
@@ -52,7 +50,7 @@ void *clientthread(void *arg) {
 	uint32_t magic = ntohl(*(uint32_t*)msg.text);
 
 	if (magic != MAGIC_LOGIN_REQ) {
-		printf("Magic Number Error");
+		infoPrint("Magic Number Error");
 		close(self->sock);
 		removeUser(self);
 		return NULL;
@@ -63,7 +61,7 @@ void *clientthread(void *arg) {
 	uint8_t version = msg.text[4];
 
 	if (version != 0) {
-		printf("Falsche Protokoll Version.\n Trenne Verbindung...");
+		infoPrint("Falsche Protokoll Version.\n Trenne Verbindung...");
 		close(self->sock);
 		removeUser(self);
 		return NULL;
@@ -74,7 +72,35 @@ void *clientthread(void *arg) {
 	int name_len = msg.len -5;
 
 	if (name_len < 1 || name_len > MSG_MAX) {
-		printf("Login fehlgeschlagen: Name zu kurz oder zu lang.\n");
+		infoPrint("Login fehlgeschlagen: Name zu kurz oder zu lang.\n");
+		close(self->sock);
+		removeUser(self);
+		return NULL;
+	}
+
+	size_t valid_chars = nameBytesValidate(msg.text+5, name_len);
+
+	if (valid_chars != name_len) {
+		infoPrint("Login fehlgeschlagen: Ungültige Zeichen im Namen.");
+
+		// WICHTIG: Dem Client sagen, warum er fliegt (Code 2)
+		Message errorResp;
+		errorResp.optcode = MSG_LOGIN_RESP;
+
+		uint32_t magic = htonl(MAGIC_LOGIN_RESP);
+		memcpy(errorResp.text, &magic, 4);
+
+		// CODE 2 = Name Invalid (Laut Protokoll)
+		errorResp.text[4] = 2;
+
+		// Server Name muss trotzdem mit
+		char *srvName = "ChatServer";
+		strcpy(errorResp.text + 5, srvName);
+		errorResp.len = 5 + strlen(srvName);
+
+		networkSend(self->sock, &errorResp);
+
+		// Rauswerfen
 		close(self->sock);
 		removeUser(self);
 		return NULL;
@@ -83,7 +109,7 @@ void *clientthread(void *arg) {
 	memcpy(self->name, msg.text+5, name_len);
 	self->name[name_len] = '\0';
 
-	printf("Login erfolgreich: User '%s' (Socket %d)\n", self->name, self->sock);
+	infoPrint("Login erfolgreich: User '%s' (Socket %d)\n", self->name, self->sock);
 
 	//2. Login Response senden
 
@@ -102,7 +128,7 @@ void *clientthread(void *arg) {
 	response.len = 5+srv_len;
 
 	if (networkSend(self->sock, &response) == -1) {
-		printf("Fehler beim Senden an %d\n", self->sock);
+		infoPrint("Fehler beim Senden an %d\n", self->sock);
 		close(self->sock);
 		removeUser(self);
 		return NULL;
@@ -122,12 +148,12 @@ void *clientthread(void *arg) {
 		if (networkReceive(self->sock, &msg) == -1) break;
 
 		if (msg.optcode == MSG_CLIENT_TO_SERVER) {
-			printf("%s: %s\n", self->name, msg.text);
+			infoPrint("%s: %s\n", self->name, msg.text);
 			//Paket bauen
 			Message chatMsg;
 			chatMsg.optcode = MSG_SERVER_TO_CLIENT;
 
-			uint64_t timestamp = htobe64((uint64_t)time(NULL));
+			uint64_t timestamp = ntoh64u((uint64_t)time(NULL));
 			memcpy(chatMsg.text, &timestamp, 8);
 
 			memset(chatMsg.text+8, 0, 32); //Füllt den Speicherbereich mit 0 auf (Sicherheit)
@@ -153,7 +179,7 @@ void *clientthread(void *arg) {
 
 void buildUserAddedMsg(Message *msg, char *username, uint64_t timestamp) {
 	msg->optcode = MSG_USER_ADDED;
-	uint64_t ts = htobe64(timestamp);
+	uint64_t ts = ntoh64u(timestamp);
 	memcpy(msg->text, &ts, 8);
 	strncpy(msg->text+8, username, MSG_MAX-9);
 	msg->text[MSG_MAX-1] = '\0';
@@ -162,7 +188,7 @@ void buildUserAddedMsg(Message *msg, char *username, uint64_t timestamp) {
 
 void buildUserRemovedMsg(Message *msg, char *username) {
 	msg->optcode = MSG_USER_REMOVED;
-	uint64_t ts = htobe64((uint64_t)time(NULL)); //Time könnte auch in andere Variable geschrieben werden, deswegen hier NULL
+	uint64_t ts = ntoh64u((uint64_t)time(NULL)); //Time könnte auch in andere Variable geschrieben werden, deswegen hier NULL
 	memcpy(msg->text, &ts, 8);
 	msg->text[8] = CONNECTION_CLOSED_BY_CLIENT;
 	strncpy(msg->text+9, username, MSG_MAX-10);
