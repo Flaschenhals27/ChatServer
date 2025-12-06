@@ -8,18 +8,26 @@
 int main(int argc, char **argv)
 {
 	utilInit(argv[0]);
-	infoPrint("Chat server, group xy");	//TODO: Add your group number!
+	infoPrint("Chat server, group 27");
 
-	//TODO: evaluate command line arguments
-	//TODO: perform initialization
+	in_port_t port = 8111;
+
+	if (argc > 1) {
+		int p = atoi(argv[1]);
+
+		if (p > 0 && p <= 65535) {
+			port = (in_port_t)p;
+			infoPrint("Server läuft unter Port %d", p);
+		} else errorPrint("Ungültiger Port, nutze Port 8111");
+	} else infoPrint("Server läuft auf Port 8111");
+
 	if (broadcastAgentInit() == 1) {
-		fprintf(stderr, "broadcastAgentInit() failed");
+		errorPrint("broadcastAgentInit() failed");
 		return EXIT_FAILURE;
 	}
 	infoPrint("Chat server started");
 
-	//TODO: use port specified via command line
-	const int result = connectionHandler((in_port_t)8111);
+	const int result = connectionHandler(port);
 
 	//TODO: perform cleanup, if required by your implementation
 	return result != -1 ? EXIT_SUCCESS : EXIT_FAILURE;
