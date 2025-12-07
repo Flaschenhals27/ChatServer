@@ -148,12 +148,57 @@ void *clientthread(void *arg) {
 		if (networkReceive(self->sock, &msg) == -1) break;
 
 		if (msg.optcode == MSG_CLIENT_TO_SERVER) {
+			msg.text[msg.len] = '\0';
+
+			if (msg.text[0] == '/') {
+				if (strcmp(self->name, "Admin") != 0) {
+					errorPrint("User %s hat keine Admin Rechte!", self->name);
+					continue;
+				}
+				if (strncmp(msg.text, "/pause", 6) == 0) {
+					adminPause();
+				}
+				else if (strncmp(msg.text, "/resume", 7) == 0) {
+					adminResume();
+				}
+				else if (strncmp(msg.text, "/kick ", 6) == 0) {
+					char *targetName = msg.text+6;
+					targetName[strcspn(targetName, "\r\n")] = '\0';
+					User *victim = findUserByName(targetName);
+					if (victim != NULL) {
+						infoPrint("Kicking user '%s'...", victim->name);
+						Message kickMsg;
+
+						//User informieren das er gekickt wird
+						Message byeMsg;
+						byeMsg.optcode = MSG_SERVER_TO_CLIENT;
+
+						uint64_t ts = hton64u((uint64_t)time(NULL));
+						memcpy(byeMsg.text, &ts, 8);
+						memset(byeMsg.text+8, 0, 32);
+						strcpy(byeMsg.text+8, "Server");
+
+						char *reason = "Du wurdest gekickt!";
+						strcpy(byeMsg.text+40, reason);
+						byeMsg.len = 40+strlen(reason);
+						networkSend(victim->sock, &byeMsg);
+
+						//Den anderen sagen das er gekickt wurde
+						buildUserRemovedMsg(&kickMsg, victim->name, 1);
+						broadcastQueueSend(&kickMsg);
+
+						shutdown(victim->sock, SHUT_RDWR); //Socket schliesst sich beim nächsten recv
+						close(victim->sock);
+					}
+				} else infoPrint("User gab unbekannten Befehl ein: %s", msg.text);
+				continue;
+			}
 			infoPrint("%s: %s\n", self->name, msg.text);
 			//Paket bauen
 			Message chatMsg;
 			chatMsg.optcode = MSG_SERVER_TO_CLIENT;
 
-			uint64_t timestamp = ntoh64u((uint64_t)time(NULL));
+			uint64_t timestamp = hton64u((uint64_t)time(NULL));
 			memcpy(chatMsg.text, &timestamp, 8);
 
 			memset(chatMsg.text+8, 0, 32); //Füllt den Speicherbereich mit 0 auf (Sicherheit)
@@ -169,7 +214,7 @@ void *clientthread(void *arg) {
 	}
 
 	Message byeMsg;
-	buildUserRemovedMsg(&byeMsg, self->name);
+	buildUserRemovedMsg(&byeMsg, self->name, 0);
 	broadcastQueueSend(&byeMsg);
 
 	close(self->sock);
@@ -186,14 +231,13 @@ void buildUserAddedMsg(Message *msg, char *username, uint64_t timestamp) {
 	msg->len = 8+strlen(msg->text+8);
 }
 
-void buildUserRemovedMsg(Message *msg, char *username) {
+void buildUserRemovedMsg(Message *msg, char *username, uint8_t reason) { //0=Logout, 1=Kicked, 2=Error
 	msg->optcode = MSG_USER_REMOVED;
 	uint64_t ts = ntoh64u((uint64_t)time(NULL)); //Time könnte auch in andere Variable geschrieben werden, deswegen hier NULL
 	memcpy(msg->text, &ts, 8);
-	msg->text[8] = CONNECTION_CLOSED_BY_CLIENT;
-	strncpy(msg->text+9, username, MSG_MAX-10);
-	msg->text[MSG_MAX-1] = '\0';
-	msg->len = 9 + strlen(msg->text+9);
+	msg->text[8] = reason;
+	strcpy(msg->text+9, username);
+	msg->len = 9 + strlen(username);
 }
 
 

@@ -2,8 +2,13 @@
 #include <mqueue.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <semaphore.h>
 
 #include "broadcastagent.h"
+
+#include <errno.h>
+#include <asm-generic/errno.h>
+
 #include "network.h"
 #include "user.h"
 #include "util.h"
@@ -11,6 +16,8 @@
 #define QUEUE_NAME "/chat_server_broadcast"
 #define QUEUE_MAX_MSGS 10
 
+static sem_t pauseSemaphore;
+static int isPaused = 0;
 static mqd_t messageQueue;
 static pthread_t threadId;
 
@@ -34,9 +41,13 @@ static void *broadcastAgent(void *arg)
 
 	while (1) {
 		ssize_t bytes_read = mq_receive(messageQueue, buffer, attr.mq_msgsize, NULL);
+
 		if (bytes_read < 0) {
 			continue; //Fehler ignorieren...
 		}
+		sem_wait(&pauseSemaphore);
+		sem_post(&pauseSemaphore);
+
 		Message *msg = (Message *)buffer; //Puffer als Message casten
 		iterateUser(NULL, sendToSocket, msg); //Nachricht verteilen
 	}
@@ -65,6 +76,11 @@ int broadcastAgentInit(void)
 		return -1;
 	}
 
+	if (sem_init(&pauseSemaphore, 0, 1) == -1) {
+		errnoPrint("Broadcast Agent: sem_init failed");
+		return -1;
+	}
+
 	if (pthread_create(&threadId, NULL, broadcastAgent, NULL) != 0) {
 		errnoPrint("Broadcast Agent: pthread_create failed");
 		mq_close(messageQueue);
@@ -83,9 +99,41 @@ void broadcastAgentCleanup(void)
 }
 
 int broadcastQueueSend(const Message *msg) {
-	if (mq_send(messageQueue, (const char *)msg, sizeof(Message), 0) == -1) {
-		errnoPrint("Broadcast Agent: mq_send failed");
-		return -1;
+
+	if (isPaused) {
+		struct timespec ts;
+		clock_gettime(CLOCK_REALTIME, &ts);
+		ts.tv_sec += 1;
+
+		if (mq_timedsend(messageQueue, (const char *)msg, sizeof(Message), 0, &ts) == -1) { //Wartet eine Sekunde darauf die Nachricht einwerfen zu können. Nutzt die Systemzeit (sicherer). Wenn Zeit abgelaufen, Nachricht verwerfen.
+			if (errno = ETIMEDOUT) {
+				infoPrint("Nachricht verworfen. (Server pausiert und Queue voll)\n");
+				return -2; //Extra Code für 'Voll'
+			}
+			errorPrint("mq_timedsend failed");
+			return -1;
+		}
+	} else {
+		if (mq_send(messageQueue, (const char *)msg, sizeof(Message), 0) == -1) {
+			errnoPrint("Broadcast Agent: mq_send failed");
+			return -1;
+		}
 	}
 	return 0;
+}
+
+void adminPause(void) {
+	if (!isPaused) {
+		sem_wait(&pauseSemaphore);
+		isPaused = 1;
+		infoPrint("System: Broadcast Agent pausiert.\n");
+	}
+}
+
+void adminResume(void) {
+	if (isPaused) {
+		sem_post(&pauseSemaphore);
+		isPaused = 0;
+		infoPrint("System: Broadcast Agent läuft wieder.\n");
+	}
 }

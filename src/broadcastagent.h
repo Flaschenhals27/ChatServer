@@ -7,5 +7,7 @@ int broadcastAgentInit(void);
 void broadcastAgentCleanup(void);
 int broadcastQueueSend(const Message *msg);
 void sendToSocket(User *target, void *arg);
+void adminPause(void);
+void adminResume(void);
 
 #endif

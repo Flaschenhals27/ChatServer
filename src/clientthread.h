@@ -12,6 +12,7 @@
 void *clientthread(void *arg);
 void sendListEntryToMe(User *existingUser, void *arg);
 void buildUserAddedMsg(Message *msg, char *username, uint64_t timestamp);
-void buildUserRemovedMsg(Message *msg, char *username);
+void buildUserRemovedMsg(Message *msg, char *username, uint8_t reason);
+User *findUserByName(char *username);
 
 #endif

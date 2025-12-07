@@ -4,6 +4,8 @@
 
 #include "user.h"
 
+#include <string.h>
+
 static pthread_mutex_t userLock = PTHREAD_MUTEX_INITIALIZER;
 static User *userFront = NULL;
 static User *userBack = NULL;
@@ -82,4 +84,17 @@ void iterateUser(User *ignoreUser, void (*function)(User *u, void *arg), void *a
         temp = nextBackup;
     }
     pthread_mutex_unlock(&userLock);
+}
+
+User *findUserByName(const char *name) {
+    pthread_mutex_lock(&userLock);
+    User *temp = userFront;
+    while (temp != NULL) {
+        if (strcmp(temp->name, name) == 0) {
+            pthread_mutex_unlock(&userLock);
+            return temp;
+        }
+    }
+    pthread_mutex_unlock(&userLock);
+    return NULL;
 }
