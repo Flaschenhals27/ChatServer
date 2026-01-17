@@ -33,7 +33,7 @@ int main(const int argc, char **argv) {
             infoPrint("Usage: %s [PORT]", argv[0]);
             return EXIT_SUCCESS;
         }
-
+        //Todo
         //--- Port überprüfen und setzen ---//
         if (atoi(argv[1]) >= 65536 || atoi(argv[1]) <= 1023) {
             port = 8111;
