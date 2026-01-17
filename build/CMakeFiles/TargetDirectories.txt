@@ -1,0 +1,3 @@
+/home/fabze/Dokumente/Systemprogrammierung_Gruppe27/build/CMakeFiles/server.dir
+/home/fabze/Dokumente/Systemprogrammierung_Gruppe27/build/CMakeFiles/edit_cache.dir
+/home/fabze/Dokumente/Systemprogrammierung_Gruppe27/build/CMakeFiles/rebuild_cache.dir
